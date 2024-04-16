@@ -26,7 +26,7 @@ import numpy as np
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
-
+from torch.utils.data import Dataset, DataLoader
 from model import GPTConfig, GPT
 
 # -----------------------------------------------------------------------------
@@ -111,51 +111,108 @@ device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.aut
 ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[dtype]
 ctx = nullcontext() if device_type == 'cpu' else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
 
-# poor man's data loader
-data_dir = os.path.join('data', dataset)
-def get_batch(split):
-    # We recreate np.memmap every batch to avoid a memory leak, as per
-    # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
-    if split == 'train':
-        data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
-    else:
-        data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
-    ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
-    y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
-    if device_type == 'cuda':
-        # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
-        x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
-    else:
-        x, y = x.to(device), y.to(device)
-    return x, y
+
+squad_dir = os.path.join('data', 'squad')
+cnn_dailymail_dir = os.path.join('data', 'cnn_dailymail')
+# def get_batch(split):
+#     # We recreate np.memmap every batch to avoid a memory leak, as per
+#     # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
+#     if split == 'train':
+#         data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
+#     else:
+#         data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
+#     ix = torch.randint(len(data) - block_size, (batch_size,))
+#     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
+#     y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
+#     if device_type == 'cuda':
+#         # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
+#         x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
+#     else:
+#         x, y = x.to(device), y.to(device)
+#     return x, y
+
+## Dataset Class
+class MergedDataset(Dataset):
+    def __init__(self, summary_root, squad_root, file, length=None):
+        # Merge the datasets for the summarizer and QA tasks
+        # self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')[:length]
+        # self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')[:length]
+
+        # self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')[:length]
+        # self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')[:length]
+
+        self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')
+        self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')
+
+        self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')
+        self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')
+
+        self.data = np.concatenate([self.summarise_data, self.qa_data])
+        self.data_lens = np.concatenate([self.summarise_lens, self.qa_lens])
+
+        self.length = self.data.shape[0]
+
+    def __len__(self):
+        return self.length
+    
+    def __getitem__(self, idx):
+        d = self.data[idx].astype(np.int64)
+        l = self.data_lens[idx].astype(np.int64)
+        # s = np.array(idx<len(self.summarise_data)).astype(np.int64)
+
+        return torch.from_numpy(d), torch.from_numpy(l)
+
+
+train_dataset = MergedDataset(cnn_dailymail_dir, squad_dir, 'train')
+print("Train Dataset Loaded!")
+val_dataset = MergedDataset(cnn_dailymail_dir, squad_dir,'validation')
+print("Validation Dataset Loaded!")
+
+## Intiialize dataloader
+train_dataloader =  DataLoader(
+    train_dataset,
+    batch_size=batch_size,
+    shuffle=True,
+    num_workers=0,
+    pin_memory=True,
+    # multiprocessing_context="spawn"
+    )
+
+val_dataloader =  DataLoader(
+    val_dataset,
+    batch_size=batch_size,
+    shuffle=False,
+    num_workers=0,
+    pin_memory=True,
+    # multiprocessing_context="spawn"
+    )
 
 # init these up here, can override if init_from='resume' (i.e. from a checkpoint)
 iter_num = 0
 best_val_loss = 1e9
 
 # attempt to derive vocab_size from the dataset
-meta_path = os.path.join(data_dir, 'meta.pkl')
-meta_vocab_size = None
-if os.path.exists(meta_path):
-    with open(meta_path, 'rb') as f:
-        meta = pickle.load(f)
-    meta_vocab_size = meta['vocab_size']
-    print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
+# meta_path = os.path.join(data_dir, 'meta.pkl')
+# meta_vocab_size = None
+# if os.path.exists(meta_path):
+#     with open(meta_path, 'rb') as f:
+#         meta = pickle.load(f)
+#     meta_vocab_size = meta['vocab_size']
+#     print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
 
 # model init
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                   bias=bias, vocab_size=None, dropout=dropout) # start with model_args from command line
-if init_from == 'scratch':
-    # init a new model from scratch
-    print("Initializing a new model from scratch")
-    # determine the vocab size we'll use for from-scratch training
-    if meta_vocab_size is None:
-        print("defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)")
-    model_args['vocab_size'] = meta_vocab_size if meta_vocab_size is not None else 50304
-    gptconf = GPTConfig(**model_args)
-    model = GPT(gptconf)
-elif init_from == 'resume':
+# if init_from == 'scratch':
+#     # init a new model from scratch
+#     print("Initializing a new model from scratch")
+#     # determine the vocab size we'll use for from-scratch training
+#     if meta_vocab_size is None:
+#         print("defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)")
+#     model_args['vocab_size'] = meta_vocab_size if meta_vocab_size is not None else 50304
+#     gptconf = GPTConfig(**model_args)
+#     model = GPT(gptconf)
+if init_from == 'resume':
     print(f"Resuming training from {out_dir}")
     # resume training from a checkpoint.
     ckpt_path = os.path.join(out_dir, 'ckpt.pt')
@@ -218,8 +275,14 @@ def estimate_loss():
     model.eval()
     for split in ['train', 'val']:
         losses = torch.zeros(eval_iters)
+        if split == 'train':
+            iterator = iter(train_dataloader)
+        else:
+            iterator = iter(val_dataloader)
         for k in range(eval_iters):
-            X, Y = get_batch(split)
+            data, article_len = next(iterator) # fetch the very first batch
+            X = data[:,:-1].to(device)
+            Y = data[:,1:].to(device)
             with ctx:
                 logits, loss = model(X, Y)
             losses[k] = loss.item()
@@ -247,7 +310,10 @@ if wandb_log and master_process:
     wandb.init(project=wandb_project, name=wandb_run_name, config=config)
 
 # training loop
-X, Y = get_batch('train') # fetch the very first batch
+train_iterator = iter(train_dataloader)
+data, article_len = next(train_iterator) # fetch the very first batch
+X = data[:,:-1].to(device)
+Y = data[:,1:].to(device)
 t0 = time.time()
 local_iter_num = 0 # number of iterations in the lifetime of this process
 raw_model = model.module if ddp else model # unwrap DDP container if needed
@@ -300,7 +366,9 @@ while True:
             logits, loss = model(X, Y)
             loss = loss / gradient_accumulation_steps # scale the loss to account for gradient accumulation
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
-        X, Y = get_batch('train')
+        data, article_len = next(train_iterator) # fetch the very first batch
+        X = data[:,:-1].to(device)
+        Y = data[:,1:].to(device)
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
     # clip the gradient

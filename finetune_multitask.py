@@ -10,6 +10,7 @@ from transformers import AdamW
 from datetime import datetime
 import os
 import random
+from tqdm import tqdm
 
 from model import GPTConfig, GPT
 from data.cnn_dailymail.prepare import enc
@@ -188,7 +189,7 @@ def train(model):
     model.zero_grad()
     set_seed(1337)
     for _ in np.arange(EPOCHS):
-        for step, (data, article_len, is_summariser) in enumerate(train_dataloader):
+        for step, (data, article_len, is_summariser) in enumerate(tqdm(train_dataloader)):
             inputs, labels = torch.tensor(data), torch.tensor(data)
             inputs = inputs.to(DEVICE)
             labels = labels.to(DEVICE)
@@ -277,10 +278,10 @@ def evaluate(model, global_step=None, lr=None, tr_loss=None):
     nb_eval_steps = 0
     model.eval()
 
-    for (data, article_len, is_summariser) in val_dataloader:
+    for (data, article_len, is_summariser) in tqdm(val_dataloader):
         inputs, labels = torch.tensor(data).to(DEVICE), torch.tensor(data).to(DEVICE)
         with torch.no_grad():
-            logits = model(inputs, retuan_all_logits=True)[0]
+            logits = model(inputs, return_all_logits=True)[0]
             shift_logits = []
             shift_labels = []
             avg_eval_bleu = 0.0
