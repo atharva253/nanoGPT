@@ -244,7 +244,7 @@ def generate_sample(index):
     data_sample = torch.tensor(data_sample[None,:]).to(DEVICE)
     idx = art_len_sample.item()
 
-    logits = model(data_sample, retuan_all_logits=True)[0]
+    logits = model(data_sample, return_all_logits=True)[0]
     preds = logits[0, idx:-1, :].argmax(dim=-1).tolist()
 
     labels = data_sample[0, idx+1:].tolist()
