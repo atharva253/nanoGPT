@@ -11,7 +11,7 @@ WANDB_KEY = "a58b432ce6a881d39ce8cd13551f8d39281858b5"
 
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate
-max_iters = 50000 # total number of training iterations
+max_iters = int(EPOCHS * (287113 + 87599) / BATCH_SIZE) # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
@@ -19,7 +19,7 @@ grad_clip = 1.0 # clip gradients at this value, or disable if == 0.0
 # learning rate decay settings
 decay_lr = True # whether to decay the learning rate
 warmup_iters = 200 # how many steps to warm up for
-lr_decay_iters = 50000 # should be ~= max_iters per Chinchilla
+lr_decay_iters = max_iters # should be ~= max_iters per Chinchilla
 min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 gradient_accumulation_steps = 8 # used to simulate larger batch sizes
 wandb_project = 'deep-gen-modelling'
