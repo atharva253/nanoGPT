@@ -36,7 +36,9 @@ if __name__ == '__main__':
         highlights_ids = enc.encode_ordinary(example['highlights'])
         highlights_ids.append(enc.eot_token)
 
-        data = article_ids + enc.encode_ordinary(" TL;DR: ") + highlights_ids
+        input_ids = article_ids + enc.encode_ordinary(" TL;DR: ")
+
+        data = input_ids + highlights_ids
         if len(data) > 1024:
             text = [0]
         else:
@@ -44,7 +46,7 @@ if __name__ == '__main__':
             text = [enc.eot_token]*1024
             text[:len(data)] = data
 
-        out = {'data': text, 'data_len': len(data), 'article_lens': [len(article_ids)]}
+        out = {'data': text, 'data_len': len(data), 'article_lens': [len(input_ids)-1]}
 
         return out
 

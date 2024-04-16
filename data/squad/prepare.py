@@ -35,10 +35,12 @@ if __name__ == '__main__':
 
         question_ids = enc.encode_ordinary(example['question'])
 
+        input_ids = context_ids + enc.encode_ordinary(" Question: ") + question_ids + enc.encode_ordinary(" Answer: ")
+
         answers_ids = enc.encode_ordinary(example['answers']['text'][0])
         answers_ids.append(enc.eot_token)
         
-        data = context_ids + enc.encode_ordinary(" Question: ") + question_ids + enc.encode_ordinary(" Answer: ") + answers_ids
+        data = input_ids + answers_ids
         if len(data) > 1024:
             text = [0]
         else:
@@ -46,7 +48,7 @@ if __name__ == '__main__':
             text = [enc.eot_token]*1024
             text[:len(data)] = data
 
-        out = {'data': text, 'data_len': len(data), 'context_lens': [len(context_ids)+ len(question_ids)]}
+        out = {'data': text, 'data_len': len(data), 'context_lens': [len(input_ids)-1]}
 
         return out
 

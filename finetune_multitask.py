@@ -41,11 +41,17 @@ wandb.login(key=WANDB_KEY)
 class MergedDataset(Dataset):
     def __init__(self, summary_root, squad_root, file, length=None):
         # Merge the datasets for the summarizer and QA tasks
-        self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')[:length]
-        self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')[:length]
+        # self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')[:length]
+        # self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')[:length]
 
-        self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')[:length]
-        self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')[:length]
+        # self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')[:length]
+        # self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')[:length]
+
+        self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')
+        self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')
+
+        self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')
+        self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')
 
         self.data = np.concatenate([self.summarise_data, self.qa_data])
         self.data_lens = np.concatenate([self.summarise_lens, self.qa_lens])
