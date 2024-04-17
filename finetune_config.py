@@ -1,13 +1,13 @@
 # CHK_PT_PATH = 'pretraining-out/gpt2-medium.bin'
 DEVICE = 'cuda'
 OUTPUT_DIR = 'multitask-finetune-complete'
-EPOCHS = 50
+EPOCHS = 10
 SUMMARY_ROOT = 'data/cnn_dailymail'
 SQUAD_ROOT = 'data/squad'
 BATCH_SIZE = 8
 IGNORE_INDEX = -1
 VOCAB_SIZE = 50257
-WANDB_KEY = "a58b432ce6a881d39ce8cd13551f8d39281858b5"
+# WANDB_KEY = "a58b432ce6a881d39ce8cd13551f8d39281858b5"
 
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate

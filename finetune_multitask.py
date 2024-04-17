@@ -36,23 +36,23 @@ dropout=dropout
 # Ignore all warnings
 warnings.filterwarnings("ignore")
 
-wandb.login(key=WANDB_KEY)
+# wandb.login(key=WANDB_KEY)
 
 ## Dataset Class
 class MergedDataset(Dataset):
     def __init__(self, summary_root, squad_root, file, length=None):
         # Merge the datasets for the summarizer and QA tasks
-        # self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')[:length]
-        # self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')[:length]
+        self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')[:length]
+        self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')[:length]
 
-        # self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')[:length]
-        # self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')[:length]
+        self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')[:length]
+        self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')[:length]
 
-        self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')
-        self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')
+        # self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')
+        # self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')
 
-        self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')
-        self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')
+        # self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')
+        # self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')
 
         self.data = np.concatenate([self.summarise_data, self.qa_data])
         self.data_lens = np.concatenate([self.summarise_lens, self.qa_lens])
@@ -69,7 +69,7 @@ class MergedDataset(Dataset):
         return d, l, idx<len(self.summarise_data)
 
 
-train_dataset = MergedDataset(SUMMARY_ROOT, SQUAD_ROOT, 'train', length=75000)
+train_dataset = MergedDataset(SUMMARY_ROOT, SQUAD_ROOT, 'train', length=50000)
 print("Train Dataset Loaded!")
 val_dataset = MergedDataset(SUMMARY_ROOT, SQUAD_ROOT,'validation', length=300)
 print("Validation Dataset Loaded!")
@@ -212,7 +212,7 @@ def train(model):
 
             tr_loss += loss.item()
             if (step + 1) % gradient_accumulation_steps == 0:
-                lr = get_lr(step)
+                lr = get_lr(global_step)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
 
@@ -233,13 +233,14 @@ def train(model):
                     print('After 1st update: ', end='\n\n')
                     generate_sample(0)
                     generate_sample(-5)
-                
-                
-            if (step + 1) % (20*gradient_accumulation_steps) == 0:
+                else:
+                    print('After', global_step+1,'updates: ', end='\n\n')
+                    generate_sample(0)
+                    generate_sample(-5)
+            
+            # if (step + 1) % (gradient_accumulation_steps) == 0:
                 results = evaluate(model, global_step, lr, loss.item())
-                print('After', global_step+1,'updates: ', end='\n\n')
-                generate_sample(0)
-                generate_sample(-5)
+                
                 
             
             del inputs, labels
@@ -365,12 +366,12 @@ def evaluate(model, global_step=None, lr=None, tr_loss=None):
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'model_args': checkpoint_model_args,
+                # 'model_args': checkpoint_model_args,
                 'iter_num': global_step,
                 'best_val_loss': min(best_val_loss, eval_loss),
                 'best_bleu_score': best_bleu_score,
                 'best_rouge_score': best_rouge_score,
-                'config': gptconf,
+                # 'config': gptconf,
             }
             print(f"saving checkpoint to {eval_output_dir}")
             torch.save(checkpoint, os.path.join(eval_output_dir, 'bleu_ckpt.pt'))
@@ -380,12 +381,12 @@ def evaluate(model, global_step=None, lr=None, tr_loss=None):
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'model_args': checkpoint_model_args,
+                # 'model_args': checkpoint_model_args,
                 'iter_num': global_step,
                 'best_val_loss': min(best_val_loss, eval_loss),
                 'best_bleu_score': best_bleu_score,
                 'best_rouge_score': best_rouge_score,
-                'config': gptconf,
+                # 'config': gptconf,
             }
             print(f"saving checkpoint to {eval_output_dir}")
             torch.save(checkpoint, os.path.join(eval_output_dir, 'rouge_ckpt.pt'))
@@ -394,5 +395,6 @@ def evaluate(model, global_step=None, lr=None, tr_loss=None):
 
 best_bleu_score = 0.21
 best_rouge_score = 0.43
+best_val_loss = 10000
 
 train(model)

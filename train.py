@@ -141,11 +141,11 @@ class MergedDataset(Dataset):
         # self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')[:length]
         # self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')[:length]
 
-        self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')
-        self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')
+        self.summarise_data = np.load(os.path.join(summary_root, file+'.npy'), mmap_mode='r')[:length]
+        self.summarise_lens = np.load(os.path.join(summary_root, file+'_lens.npy'), mmap_mode='r')[:length]
 
-        self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')
-        self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')
+        self.qa_data = np.load(os.path.join(squad_root, file+'.npy'), mmap_mode='r')[:length]
+        self.qa_lens = np.load(os.path.join(squad_root, file+'_lens.npy'), mmap_mode='r')[:length]
 
         self.data = np.concatenate([self.summarise_data, self.qa_data])
         self.data_lens = np.concatenate([self.summarise_lens, self.qa_lens])
@@ -163,9 +163,9 @@ class MergedDataset(Dataset):
         return torch.from_numpy(d), torch.from_numpy(l)
 
 
-train_dataset = MergedDataset(cnn_dailymail_dir, squad_dir, 'train')
+train_dataset = MergedDataset(cnn_dailymail_dir, squad_dir, 'train', length=10)
 print("Train Dataset Loaded!")
-val_dataset = MergedDataset(cnn_dailymail_dir, squad_dir,'validation')
+val_dataset = MergedDataset(cnn_dailymail_dir, squad_dir,'validation', length=10)
 print("Validation Dataset Loaded!")
 
 ## Intiialize dataloader
