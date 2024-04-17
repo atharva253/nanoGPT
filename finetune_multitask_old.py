@@ -12,9 +12,9 @@ import os
 import random
 from tqdm import tqdm
 
-from model import GPTConfig, GPT
+from model_old import GPTConfig, GPT
 from data.cnn_dailymail.prepare import enc
-from finetune_config import *
+from finetune_config_old import *
 
 import gc
 import wandb
@@ -33,20 +33,20 @@ bias=False
 vocab_size=None
 dropout=dropout
 
-enc = tiktoken.get_encoding("gpt2")
-enc = tiktoken.Encoding(
-    name="gpt2",
-    pat_str=enc._pat_str,
-    mergeable_ranks=enc._mergeable_ranks,
-    special_tokens={
-        **enc._special_tokens,
-        SOS_TOKEN: 50257,
-        SUMMARY_TOKEN : 50258,
-        QUESTION_TOKEN : 50259,
-        ANSWER_TOKEN : 50260,
-        PAD_TOKEN : 50261
-    }
-)
+# enc = tiktoken.get_encoding("gpt2")
+# enc = tiktoken.Encoding(
+#     name="gpt2",
+#     pat_str=enc._pat_str,
+#     mergeable_ranks=enc._mergeable_ranks,
+#     special_tokens={
+#         **enc._special_tokens,
+#         SOS_TOKEN: 50257,
+#         SUMMARY_TOKEN : 50258,
+#         QUESTION_TOKEN : 50259,
+#         ANSWER_TOKEN : 50260,
+#         PAD_TOKEN : 50261
+#     }
+# )
 
 # Ignore all warnings
 warnings.filterwarnings("ignore")

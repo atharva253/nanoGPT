@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-IGNORE_INDEX = 50261
+IGNORE_INDEX = 50256
 
 class LayerNorm(nn.Module):
     """ LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False """
@@ -226,7 +226,7 @@ class GPT(nn.Module):
             'gpt2-xl':      dict(n_layer=48, n_head=25, n_embd=1600), # 1558M params
         }[model_type]
         print("forcing vocab_size=50257, block_size=1024, bias=True")
-        config_args['vocab_size'] = 50262 # always 50257 for GPT model checkpoints
+        config_args['vocab_size'] = 50257 # always 50257 for GPT model checkpoints
         config_args['block_size'] = 1024 # always 1024 for GPT model checkpoints
         config_args['bias'] = True # always True for GPT model checkpoints
         # we can override the dropout rate, if desired

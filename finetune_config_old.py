@@ -1,12 +1,12 @@
 # CHK_PT_PATH = 'pretraining-out/gpt2-medium.bin'
 DEVICE = 'cuda'
-OUTPUT_DIR = 'multitask-finetune-complete-new'
+OUTPUT_DIR = 'multitask-finetune-complete'
 EPOCHS = 2
-SUMMARY_ROOT = 'data/cnn_dailymail_new'
-SQUAD_ROOT = 'data/squad_new'
+SUMMARY_ROOT = 'data/cnn_dailymail'
+SQUAD_ROOT = 'data/squad'
 BATCH_SIZE = 8
-IGNORE_INDEX = 50261
-VOCAB_SIZE = 50262
+IGNORE_INDEX = 50256
+VOCAB_SIZE = 50257
 # WANDB_KEY = "a58b432ce6a881d39ce8cd13551f8d39281858b5"
 
 # adamw optimizer
@@ -26,13 +26,13 @@ lr_decay_iters = max_iters # should be ~= max_iters per Chinchilla
 min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 gradient_accumulation_steps = 8 # used to simulate larger batch sizes
 wandb_project = 'deep-gen-modelling'
-wandb_run_name = 'multitask-finetuning'
+wandb_run_name = 'multitask-finetuning-old'
 scaler_enabled = True
 dropout = 0.0
 init_from = "gpt2-medium"
 
-PAD_TOKEN = '<|pad|>'               # 50261
-SUMMARY_TOKEN = '<|summary|'        # 50258
-QUESTION_TOKEN = '<|question|>'     # 50259
-ANSWER_TOKEN = "<|answer|>"               # 50260
-SOS_TOKEN = "<|startoftext|>"       # 50257
+# PAD_TOKEN = '<|pad|>'               # 50261
+# SUMMARY_TOKEN = '<|summary|'        # 50258
+# QUESTION_TOKEN = '<|question|>'     # 50259
+# ANSWER_TOKEN = "<|answer|>"               # 50260
+# SOS_TOKEN = "<|startoftext|>"       # 50257
