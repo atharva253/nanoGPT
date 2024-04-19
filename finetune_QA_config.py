@@ -2,7 +2,9 @@ import time
 
 # CHK_PT_PATH = 'pretraining-out/gpt2-medium.bin'
 DEVICE = 'cuda'
-OUTPUT_DIR = 'sequential-finetune-qa'                                                     
+OUTPUT_DIR =  'sequential-finetune-qa'   
+MODEL_LOAD_DIR = 'sequential-finetune-sum'
+MODEL_SAVE_DIR = 'sequential-finetune-qa'                                                   
 EPOCHS = 2                                                                               
 # SUMMARY_ROOT = 'data/cnn_dailymail'
 SQUAD_ROOT = 'data/squad'

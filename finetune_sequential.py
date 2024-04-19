@@ -158,9 +158,9 @@ val_dataloader =  DataLoader(
 model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                   bias=bias, vocab_size=None, dropout=dropout) # start with model_args from command line
 if init_from == 'resume':
-    print(f"Resuming training from {OUTPUT_DIR}")
+    print(f"Resuming training from {MODEL_LOAD_DIR}")
     # resume training from a checkpoint.
-    ckpt_path = os.path.join(OUTPUT_DIR, 'ckpt.pt')
+    ckpt_path = os.path.join(MODEL_LOAD_DIR, 'blue_ckpt.pt')
     checkpoint = torch.load(ckpt_path, map_location=DEVICE)
     checkpoint_model_args = checkpoint['model_args']
     # force these config attributes to be equal otherwise we can't even resume training
@@ -317,9 +317,9 @@ def generate_sample(index):
 
 
 def evaluate(model, global_step=None, lr=None, tr_loss=None):
-    if not os.path.exists(OUTPUT_DIR):
-        os.mkdir(OUTPUT_DIR)
-    eval_output_dir = OUTPUT_DIR
+    if not os.path.exists(MODEL_SAVE_DIR):
+        os.mkdir(MODEL_SAVE_DIR)
+    eval_output_dir = MODEL_SAVE_DIR
 
     results = {}
 

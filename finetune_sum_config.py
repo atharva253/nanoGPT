@@ -1,11 +1,13 @@
 # CHK_PT_PATH = 'pretraining-out/gpt2-medium.bin'
 DEVICE = 'cuda'
 OUTPUT_DIR =  'sequential-finetune-sum'
+MODEL_LOAD_DIR = ''
+MODEL_SAVE_DIR = 'sequential-finetune-sum'      
 EPOCHS = 2
 #SUMMARY_ROOT = 'data/cnn_dailymail'
 #SQUAD_ROOT = 'data/squad'
 ROOT = 'data/cnn_dailymail'
-BATCH_SIZE = 4
+BATCH_SIZE = 8
 IGNORE_INDEX = 50256
 VOCAB_SIZE = 50257
 TASK = 'SUMMARY'
