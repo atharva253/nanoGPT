@@ -1,6 +1,6 @@
 # CHK_PT_PATH = 'pretraining-out/gpt2-medium.bin'
 DEVICE = 'cuda'
-OUTPUT_DIR = 'multitask-finetune-complete'
+OUTPUT_DIR = 'multitask-finetune-complete-lrdecay'
 EPOCHS = 2
 SUMMARY_ROOT = 'data/cnn_dailymail'
 SQUAD_ROOT = 'data/squad'

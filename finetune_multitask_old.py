@@ -227,7 +227,7 @@ def train(model):
 
             tr_loss += loss.item()
             if (step + 1) % gradient_accumulation_steps == 0:
-                lr = get_lr(global_step)
+                lr = get_lr(step)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
 

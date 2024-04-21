@@ -9,7 +9,7 @@ num_proc = 8
 num_proc_load_dataset = num_proc
 
 PAD_TOKEN = '<|pad|>'               # 50261
-SUMMARY_TOKEN = '<|summary|'        # 50258
+SUMMARY_TOKEN = '<|summary|>'        # 50258
 QUESTION_TOKEN = '<|question|>'     # 50259
 ANSWER_TOKEN = "<|answer|>"               # 50260
 SOS_TOKEN = "<|startoftext|>"       # 50257
