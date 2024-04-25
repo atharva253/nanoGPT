@@ -10,11 +10,12 @@ from transformers import AdamW
 from datetime import datetime
 import os
 import random
+import pickle
 from tqdm import tqdm
-
+import json
 from model_old import GPTConfig, GPT
 from data.cnn_dailymail.prepare import enc
-from finetune_QA_config import *
+from ewc_config import *
 
 import gc
 import wandb
@@ -173,13 +174,16 @@ model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=bloc
 if init_from == 'resume':
     print(f"Resuming training from {MODEL_LOAD_DIR}")
     # resume training from a checkpoint.
-    ckpt_path = os.path.join(MODEL_LOAD_DIR, 'blue_ckpt.pt')
+    ckpt_path = os.path.join(MODEL_LOAD_DIR, 'bleu_ckpt.pt')
     checkpoint = torch.load(ckpt_path, map_location=DEVICE)
-    checkpoint_model_args = checkpoint['model_args']
+        #checkpoint_model_args = checkpoint['model_args']  # not using this since we did not save model_args in the first model
+    override_args = dict(dropout=dropout)
+    original_model = GPT.from_pretrained("gpt2-medium", override_args)
     # force these config attributes to be equal otherwise we can't even resume training
     # the rest of the attributes (e.g. dropout) can stay as desired from command line
     for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
-        model_args[k] = checkpoint_model_args[k]
+        #model_args[k] = checkpoint_model_args[k]   # not using this since we did not save model_args in the first model 
+        model_args[k] = getattr(original_model.config, k)
     # create the model
     gptconf = GPTConfig(**model_args)
     model = GPT(gptconf)
@@ -285,7 +289,7 @@ def ewc_prep(num_sample=5000):
         del inputs, labels
         torch.cuda.empty_cache()
         gc.collect()
-        if(step > num_sample):
+        if(step*8 > num_sample):
             break
 
     fisher_dict = {}
@@ -337,11 +341,13 @@ def train_ewc(model, fisher_dict, optpar_dict):
             # ewc change ends
 
             loss = loss/gradient_accumulation_steps
+            torch.cuda.empty_cache()
+            gc.collect()
             scaler.scale(loss).backward()
 
             tr_loss += loss.item()
             if (step + 1) % gradient_accumulation_steps == 0:
-                lr = get_lr(global_step)
+                lr = get_lr(step)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
 
@@ -406,7 +412,7 @@ def train(model):
 
             tr_loss += loss.item()
             if (step + 1) % gradient_accumulation_steps == 0:
-                lr = get_lr(global_step)
+                lr = get_lr(step)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
 
@@ -595,6 +601,25 @@ best_val_loss = 10000
 
 # train(model)
 fisher_dict, optpar_dict = ewc_prep(num_sample=10000)
+# File path to save the dictionary
+file_path = 'fisher_dict.pkl'
+
+# Save dictionary to file using pickle
+with open(file_path, 'wb') as f:
+    pickle.dump(fisher_dict, f)
+
+# File path to save the dictionary
+file_path = 'optpar_dict.pkl'
+
+# Save dictionary to file using pickle
+with open(file_path, 'wb') as f:
+    pickle.dump(optpar_dict, f)
+
+
+print("Dictionary saved successfully!")
+print("Dictionaries created")
 # first task complete
 # model/dataset loading
+torch.cuda.empty_cache()
+gc.collect()
 train_ewc(model, fisher_dict, optpar_dict)

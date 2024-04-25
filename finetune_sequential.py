@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from model_old import GPTConfig, GPT
 from data.cnn_dailymail.prepare import enc
-from finetune_sum_config import *
+from finetune_QA_config import *
 
 import gc
 import wandb
@@ -160,13 +160,16 @@ model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=bloc
 if init_from == 'resume':
     print(f"Resuming training from {MODEL_LOAD_DIR}")
     # resume training from a checkpoint.
-    ckpt_path = os.path.join(MODEL_LOAD_DIR, 'blue_ckpt.pt')
+    ckpt_path = os.path.join(MODEL_LOAD_DIR, 'bleu_ckpt.pt')
     checkpoint = torch.load(ckpt_path, map_location=DEVICE)
-    checkpoint_model_args = checkpoint['model_args']
+    #checkpoint_model_args = checkpoint['model_args']
+    override_args = dict(dropout=dropout)
+    original_model = GPT.from_pretrained("gpt2-medium", override_args)
     # force these config attributes to be equal otherwise we can't even resume training
     # the rest of the attributes (e.g. dropout) can stay as desired from command line
     for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
-        model_args[k] = checkpoint_model_args[k]
+        #model_args[k] = checkpoint_model_args[k]
+        model_args[k] = getattr(original_model.config, k)
     # create the model
     gptconf = GPTConfig(**model_args)
     model = GPT(gptconf)
@@ -262,7 +265,7 @@ def train(model):
 
             tr_loss += loss.item()
             if (step + 1) % gradient_accumulation_steps == 0:
-                lr = get_lr(global_step)
+                lr = get_lr(step)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
 
