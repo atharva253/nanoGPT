@@ -229,6 +229,11 @@ wandb.init(project=wandb_project, name=wandb_run_name, config=wandb_config)
 
 model = model.to(DEVICE)
 
+name = ''
+for temp, param in model.named_parameters():
+    name = temp
+    print(name)
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -278,7 +283,7 @@ def ewc_prep(num_sample=5000):
             shift_labels.append(labels[batch_idx, idx+1:])
         shift_logits = torch.cat(shift_logits, dim=0)
         shift_labels = torch.cat(shift_labels, dim=0)
-
+        
         loss = loss_fct(shift_logits, shift_labels)
         loss = loss/gradient_accumulation_steps
 
@@ -308,45 +313,71 @@ def train_ewc(model, fisher_dict, optpar_dict):
     tr_loss, logging_loss = 0.0, 0.0
     model.zero_grad()
     set_seed(1337)
+    model.train()
     for epoch in np.arange(EPOCHS):
         # is_summariser = TASK
         for step, (data, article_len) in enumerate(tqdm(train_dataloader)):
+            # print('before anything')
+            # print(torch.cuda.memory_summary(abbreviated=False))
             inputs, labels = torch.tensor(data), torch.tensor(data)
             inputs = inputs.to(DEVICE)
             labels = labels.to(DEVICE)
-            model.train()
-            logits = model(inputs, return_all_logits=True)[0]
-            
-            # only consider loss on reference summary just like seq2seq models
-            shift_logits = []
-            shift_labels = []
-            for batch_idx in range(logits.shape[0]):
-                idx = article_len[batch_idx].item() # index of separator token
-                shift_logits.append(logits[batch_idx, idx:-1, :])
-                shift_labels.append(labels[batch_idx, idx+1:])
-            shift_logits = torch.cat(shift_logits, dim=0)
-            shift_labels = torch.cat(shift_labels, dim=0)
+            # model.train()
+            # print('before train inf')
+            # print(torch.cuda.memory_summary(abbreviated=False))
+            # with torch.no_grad():
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                logits = model(inputs, return_all_logits=True)[0]
+                # continue
+                # torch.cuda.empty_cache()
+                # gc.collect()
+                # print('after train inf')
+                # print(torch.cuda.memory_summary(abbreviated=False))
+                
+                # only consider loss on reference summary just like seq2seq models
+                shift_logits = []
+                shift_labels = []
+                for batch_idx in range(logits.shape[0]):
+                    idx = article_len[batch_idx].item() # index of separator token
+                    shift_logits.append(logits[batch_idx, idx:-1, :])
+                    shift_labels.append(labels[batch_idx, idx+1:])
+                shift_logits = torch.cat(shift_logits, dim=0)
+                shift_labels = torch.cat(shift_labels, dim=0)
 
-            loss = loss_fct(shift_logits, shift_labels)
+                # print('before loss')
+                # print(torch.cuda.memory_summary(abbreviated=False))
+                loss = loss_fct(shift_logits, shift_labels)/gradient_accumulation_steps
+                # print('after loss')
+                # print(torch.cuda.memory_summary(abbreviated=False))
             
-            # ewc change starts
-            # 2 prints are for adjusting hyperparameter ewc_lambda
-            print('loss before ewc: {}'.format(loss.item()))
-            for name, param in model.named_parameters():
-                fisher = fisher_dict[name]
-                optpar = optpar_dict[name]
-                # hyperparameter ewc_lambda 
-                loss += (fisher * (optpar - param).pow(2)).sum() * ewc_lambda
-            print('loss after ewc: {}'.format(loss.item()))
-            # ewc change ends
+                # ewc change starts
+                # 2 prints are for adjusting hyperparameter ewc_lambda
 
-            loss = loss/gradient_accumulation_steps
-            torch.cuda.empty_cache()
-            gc.collect()
+                print('loss before ewc: {}'.format(loss.item()))
+                # counter = 0
+                # for name, param in reversed(model.named_parameters()):
+                #     # fisher = fisher_dict[name]
+                #     # optpar = optpar_dict[name]
+                #     # hyperparameter ewc_lambda 
+                #     # ewc_loss = torch.tensor()
+                #     loss = loss + (fisher_dict[name] * (optpar_dict[name] - param).pow(2)).sum() * ewc_lambda
+                #     break
+                loss = loss + (fisher_dict[name] * (optpar_dict[name] - param).pow(2)).sum() * ewc_lambda
+                print('loss after ewc: {}'.format(loss.item()))
+                # ewc change ends
+
+            # loss = loss/gradient_accumulation_steps
+            # torch.cuda.empty_cache()
+            # gc.collect()
+            # print('before loss back')
+            # print(torch.cuda.memory_summary(abbreviated=False))
             scaler.scale(loss).backward()
+            # print('after loss back')
+            # print(torch.cuda.memory_summary(abbreviated=False))
 
             tr_loss += loss.item()
             if (step + 1) % gradient_accumulation_steps == 0:
+                # print('optimize stuff')
                 lr = get_lr(step)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr
@@ -377,7 +408,7 @@ def train_ewc(model, fisher_dict, optpar_dict):
                     results = evaluate(model, global_step, lr, loss.item())        
                 
             
-            del inputs, labels
+            del inputs, labels, logits, idx, shift_logits, shift_labels
             torch.cuda.empty_cache()
             gc.collect()
             if (global_step * 8) >= max_iters: break
@@ -463,6 +494,8 @@ def generate_sample(index):
     else:
         print("Pred Answer:\n %s \n" % enc.decode(preds))
         print("True Answer:\n %s \n\n" % enc.decode(labels))
+    
+    del data_sample
 
 
 
@@ -524,7 +557,7 @@ def evaluate(model, global_step=None, lr=None, tr_loss=None):
             eval_bleu_scores += avg_eval_bleu/logits.shape[0]
             eval_rouge_scores += avg_rouge_score/logits.shape[0]
         
-        del inputs, labels
+        del inputs, labels, logits, shift_logits, shift_labels
         torch.cuda.empty_cache()
         gc.collect()
 
@@ -600,26 +633,30 @@ best_rouge_score = 0.43
 best_val_loss = 10000
 
 # train(model)
-fisher_dict, optpar_dict = ewc_prep(num_sample=10000)
-# File path to save the dictionary
-file_path = 'fisher_dict.pkl'
+# fisher_dict, optpar_dict = ewc_prep(num_sample=10000)
+# # File path to save the dictionary
+# file_path = 'fisher_dict.pkl'
 
-# Save dictionary to file using pickle
-with open(file_path, 'wb') as f:
-    pickle.dump(fisher_dict, f)
+# # Save dictionary to file using pickle
+# with open(file_path, 'wb') as f:
+#     pickle.dump(fisher_dict, f)
 
-# File path to save the dictionary
-file_path = 'optpar_dict.pkl'
+# # File path to save the dictionary
+# file_path = 'optpar_dict.pkl'
 
-# Save dictionary to file using pickle
-with open(file_path, 'wb') as f:
-    pickle.dump(optpar_dict, f)
+# # Save dictionary to file using pickle
+# with open(file_path, 'wb') as f:
+#     pickle.dump(optpar_dict, f)
 
-
+with open('fisher_dict.pkl', 'rb') as f:
+    fisher_dict = pickle.load(f)
+with open('optpar_dict.pkl', 'rb') as f:
+    optpar_dict = pickle.load(f)
 print("Dictionary saved successfully!")
 print("Dictionaries created")
 # first task complete
 # model/dataset loading
+
 torch.cuda.empty_cache()
 gc.collect()
 train_ewc(model, fisher_dict, optpar_dict)
